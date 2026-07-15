@@ -1,0 +1,206 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { deriveBlogCategories, fetchAuthors } from '../../lib/drupal.mjs';
+
+const authors = await fetchAuthors();
+const navigationCategories = deriveBlogCategories(authors.flatMap((author) => author.articles));
+const sorted = authors.sort((a, b) => b.articleCount - a.articleCount);
+---
+
+<Layout
+	title="Συγγραφείς | Enterlife"
+	description="Γνωρίστε τους ανθρώπους που γράφουν για το Enterlife."
+	navigationCategories={navigationCategories}
+>
+	<header class="authors-intro">
+		<div class="authors-intro__inner container">
+			<p class="eyebrow">ENTERLIFE JOURNAL</p>
+			<h1>Συγγραφείς</h1>
+			<p class="authors-intro__copy">
+				Γνωρίστε τους ανθρώπους πίσω από τα άρθρα, τις ιδέες και τις ιστορίες μας.
+			</p>
+			<p class="authors-intro__count">{authors.length} συγγραφείς</p>
+		</div>
+	</header>
+
+	<section class="authors-archive container" aria-label="Όλοι οι συγγραφείς">
+		{
+			authors.length > 0 ? (
+				<div class="authors-grid">
+					{sorted.map((author) => (
+						<article class="author-card" data-reveal>
+							<a class="author-card__link" href={`/authors/${author.slug}`}>
+								<div class="author-card__avatar">
+									{author.pictureUrl ? (
+										<img
+											src={author.pictureUrl}
+											alt={author.name}
+											width="200"
+											height="200"
+											loading="lazy"
+										/>
+									) : (
+										<span class="author-card__initials" aria-hidden="true">
+											{author.name.charAt(0)}
+										</span>
+									)}
+								</div>
+								<h2 class="author-card__name">{author.name}</h2>
+								<p class="author-card__count">
+									{author.articleCount} {author.articleCount === 1 ? 'άρθρο' : 'άρθρα'}
+								</p>
+							</a>
+						</article>
+					))}
+				</div>
+			) : (
+				<p class="authors-empty">Δεν υπάρχουν συγγραφείς ακόμη.</p>
+			)
+		}
+	</section>
+</Layout>
+
+<style>
+	.authors-intro {
+		position: relative;
+		overflow: hidden;
+		border-block: 1px solid var(--line);
+		background:
+			radial-gradient(circle at 18% 72%, rgb(169 212 225 / 0.45), transparent 20rem),
+			linear-gradient(135deg, var(--paper), var(--paper-soft));
+	}
+
+	.authors-intro__inner {
+		position: relative;
+		z-index: 1;
+		padding-block: clamp(4.5rem, 9vw, 8rem);
+	}
+
+	.authors-intro h1 {
+		margin-bottom: 1rem;
+		font-size: clamp(3.4rem, 7vw, 6.5rem);
+	}
+
+	.authors-intro__copy {
+		max-width: 39rem;
+		margin-bottom: 0;
+		color: var(--muted);
+		font-family: var(--display);
+		font-size: clamp(1.2rem, 2.3vw, 1.65rem);
+		line-height: 1.5;
+	}
+
+	.authors-intro__count {
+		position: absolute;
+		right: 0;
+		bottom: clamp(4.5rem, 9vw, 8rem);
+		margin: 0;
+		color: var(--ink);
+		font-size: 0.72rem;
+		font-weight: 800;
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+	}
+
+	.authors-archive {
+		padding-block: clamp(4rem, 8vw, 8rem);
+	}
+
+	.authors-grid {
+		display: grid;
+		align-items: stretch;
+		gap: clamp(1.25rem, 2.5vw, 2.25rem);
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+
+	.author-card {
+		border: 1px solid var(--line);
+		background: var(--white);
+		box-shadow: 0 0.6rem 2rem rgb(38 63 72 / 0.035);
+		transition:
+			border-color 220ms ease,
+			box-shadow 220ms ease,
+			transform 220ms ease;
+	}
+
+	.author-card:hover {
+		border-color: rgb(127 174 192 / 0.65);
+		box-shadow: 0 1.25rem 3rem rgb(38 63 72 / 0.09);
+		transform: translateY(-0.35rem);
+	}
+
+	.author-card__link {
+		display: flex;
+		align-items: center;
+		flex-direction: column;
+		padding: clamp(2rem, 4vw, 3.5rem);
+		text-align: center;
+		text-decoration: none;
+	}
+
+	.author-card__avatar {
+		width: clamp(5rem, 8vw, 7rem);
+		height: clamp(5rem, 8vw, 7rem);
+		margin-bottom: 1.25rem;
+		border-radius: 50%;
+		overflow: hidden;
+		background: linear-gradient(145deg, #edf3f3, #f7f3ef);
+	}
+
+	.author-card__avatar img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.author-card__initials {
+		display: grid;
+		width: 100%;
+		height: 100%;
+		color: var(--muted);
+		font-family: var(--display);
+		font-size: clamp(1.8rem, 3vw, 2.6rem);
+		place-items: center;
+	}
+
+	.author-card__name {
+		margin-bottom: 0.5rem;
+		font-size: clamp(1.1rem, 1.8vw, 1.35rem);
+	}
+
+	.author-card__count {
+		margin: 0;
+		color: var(--muted);
+		font-size: 0.78rem;
+	}
+
+	.authors-empty {
+		padding: 4rem;
+		border: 1px solid var(--line);
+		background: var(--white);
+		text-align: center;
+	}
+
+	@media (max-width: 62rem) {
+		.authors-grid {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 48rem) {
+		.authors-intro__count {
+			position: static;
+			margin-top: 1.5rem;
+		}
+
+		.authors-grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 36rem) {
+		.authors-grid {
+			grid-template-columns: repeat(1, 1fr);
+		}
+	}
+</style>

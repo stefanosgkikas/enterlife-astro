@@ -1,0 +1,625 @@
+---
+interface Category {
+	name: string;
+	slug: string;
+	count?: number;
+}
+
+interface Props {
+	categories?: Category[];
+}
+
+const { categories = [] } = Astro.props;
+
+/*
+const primaryLinks = [
+    { href: '/authors/', label: 'Συγγραφείς' },
+];
+*/
+
+const categoryLinks = categories.slice(0, 6).map((category) => ({
+	href: `/#${category.slug}`,
+	slug: category.slug,
+	label: category.name,
+	count: category.count,
+}));
+---
+
+<header class="site-header" data-site-header>
+	<div class="nav-shell">
+		<a class="brand" href="/" aria-label="Enterlife — Αρχική">
+			<svg class="brand__mark" aria-hidden="true" viewBox="0 0 100 66">
+				<path d="M50 56C34 48 27 35 29 17c10 5 17 13 21 24 4-11 11-19 21-24 2 18-5 31-21 39Z"></path>
+				<path d="M50 57C30 57 16 49 8 34c15-2 27 2 36 13M50 57c20 0 34-8 42-23-15-2-27 2-36 13"></path>
+				<path d="M50 42C42 31 42 18 50 6c8 12 8 25 0 36Z"></path>
+				<path d="M23 23c13 3 22 11 27 24M77 23c-13 3-22 11-27 24"></path>
+				<path d="M17 57c20 6 46 6 66 0"></path>
+			</svg>
+			<span class="brand__copy">
+				<span class="brand__name">Enterlife</span>
+				<span class="brand__tagline">Wellness & Tech</span>
+			</span>
+		</a>
+
+		<button
+			class="menu-toggle"
+			type="button"
+			aria-controls="primary-navigation"
+			aria-expanded="false"
+			aria-label="Άνοιγμα μενού"
+		>
+			<span></span>
+			<span></span>
+			<span></span>
+		</button>
+
+		<nav id="primary-navigation" class="primary-nav" aria-label="Κύρια πλοήγηση">
+			{/*<div class="primary-nav__links">
+				{primaryLinks.map((link) => <a href={link.href}>{link.label}</a>)}
+			</div>*/}
+
+			{
+				categoryLinks.length > 0 && (
+					<div class="category-nav" aria-label="Γρήγορες κατηγορίες">
+						{categoryLinks.map((category) => (
+							<a
+								href={category.href}
+								data-header-filter={category.slug}
+								data-header-filter-name={category.label}
+							>
+								{category.label}
+								{typeof category.count === 'number' && <span>{category.count}</span>}
+							</a>
+						))}
+					</div>
+				)
+			}
+
+			<form class="header-search" action="/" role="search" data-header-search>
+				<label for="header-search-input">Αναζήτηση άρθρων</label>
+				<div class="header-search__field">
+					<input
+						id="header-search-input"
+						type="search"
+						name="q"
+						autocomplete="off"
+						placeholder="Αναζήτηση"
+						data-header-search-input
+					/>
+					<button type="submit" aria-label="Αναζήτηση">
+						<svg aria-hidden="true" viewBox="0 0 24 24">
+							<circle cx="11" cy="11" r="6"></circle>
+							<path d="m16 16 4 4"></path>
+						</svg>
+					</button>
+				</div>
+			</form>
+
+			<a class="login-link" href="http://admin.enterlife.localhost/user/login/" rel="noreferrer">
+				Login
+			</a>
+		</nav>
+	</div>
+</header>
+
+<script>
+	function setupSiteHeader() {
+		document.querySelectorAll('[data-site-header]').forEach((header) => {
+			if (!(header instanceof HTMLElement) || header.dataset.siteHeaderReady === 'true') return;
+			header.dataset.siteHeaderReady = 'true';
+
+			const menuButton = header.querySelector('.menu-toggle');
+			const navigation = header.querySelector('#primary-navigation');
+			const searchForm = header.querySelector('[data-header-search]');
+			const searchInput = header.querySelector('[data-header-search-input]');
+
+			if (!(menuButton instanceof HTMLButtonElement) || !(navigation instanceof HTMLElement)) return;
+
+			const closeMenu = (restoreFocus = false) => {
+				navigation.removeAttribute('data-open');
+				menuButton.setAttribute('aria-expanded', 'false');
+				menuButton.setAttribute('aria-label', 'Άνοιγμα μενού');
+				document.body.classList.remove('menu-open');
+				if (restoreFocus) menuButton.focus();
+			};
+
+			menuButton.addEventListener('click', () => {
+				const isOpen = menuButton.getAttribute('aria-expanded') === 'true';
+				if (isOpen) {
+					closeMenu();
+					return;
+				}
+
+				navigation.setAttribute('data-open', '');
+				menuButton.setAttribute('aria-expanded', 'true');
+				menuButton.setAttribute('aria-label', 'Κλείσιμο μενού');
+				document.body.classList.add('menu-open');
+			});
+
+			navigation.querySelectorAll('a').forEach((link) => {
+				link.addEventListener('click', () => closeMenu());
+			});
+
+			navigation.querySelectorAll('[data-header-filter]').forEach((link) => {
+				link.addEventListener('click', () => {
+					if (!(link instanceof HTMLElement)) return;
+					const blogExplorer = document.querySelector('[data-blog-explorer]');
+					if (!blogExplorer || window.location.pathname !== '/') return;
+					document.dispatchEvent(
+						new CustomEvent('enterlife:blog-filter', {
+							detail: { filter: link.dataset.headerFilter || '' },
+						}),
+					);
+				});
+			});
+
+			searchForm?.addEventListener('submit', (event) => {
+				if (!(searchInput instanceof HTMLInputElement)) return;
+				const query = searchInput.value.trim();
+				event.preventDefault();
+				const blogExplorer = document.querySelector('[data-blog-explorer]');
+
+				if (blogExplorer) {
+					document.dispatchEvent(
+						new CustomEvent('enterlife:blog-search', {
+							detail: { query },
+						}),
+					);
+					const target = document.querySelector('#articles');
+					target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+					if (window.location.pathname === '/') {
+						const nextUrl = query
+							? `/?q=${encodeURIComponent(query)}#articles`
+							: '/#articles';
+						window.history.replaceState(null, '', nextUrl);
+					}
+					closeMenu();
+					return;
+				}
+
+				if (!query) {
+					window.location.assign('/#articles');
+					return;
+				}
+
+				window.location.assign(`/?q=${encodeURIComponent(query)}#articles`);
+			});
+
+			document.addEventListener('keydown', (event) => {
+				if (event.key === 'Escape' && menuButton.getAttribute('aria-expanded') === 'true') {
+					closeMenu(true);
+				}
+			});
+
+			window.matchMedia('(min-width: 64rem)').addEventListener('change', (event) => {
+				if (event.matches) closeMenu();
+			});
+		});
+	}
+
+	setupSiteHeader();
+	document.addEventListener('astro:after-swap', setupSiteHeader);
+</script>
+
+<style>
+	.site-header {
+		position: sticky;
+		z-index: 80;
+		top: 0;
+		border-bottom: 1px solid rgb(220 226 225 / 0.88);
+		background: rgb(255 255 255 / 0.94);
+		backdrop-filter: blur(18px);
+		box-shadow: 0 0.75rem 2.25rem rgb(38 63 72 / 0.06);
+	}
+
+	.nav-shell {
+		display: grid;
+		width: min(100% - 2rem, 116rem);
+		min-height: 5.25rem;
+		align-items: center;
+		gap: clamp(1rem, 2vw, 2rem);
+		margin-inline: auto;
+		grid-template-columns: auto minmax(0, 1fr);
+			/* Ορίζει το μέγιστο πλάτος που θέλεις (π.χ. 1200px ή 1140px) */
+		max-width: 1350px; 
+		
+		/* Κεντράρει το container στην οθόνη */
+		margin: 0 auto; 
+		
+		/* Προαιρετικό: Προσθέτει λίγο κενό αριστερά/δεξιά σε μικρές οθόνες */
+		padding-left: 20px;
+		padding-right: 20px;
+		
+		/* Διατηρεί το layout σου (υποθέτω χρησιμοποιείς flexbox) */
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.brand {
+		display: inline-flex;
+		min-width: 0;
+		align-items: center;
+		gap: 0.7rem;
+		color: var(--ink);
+		text-decoration: none;
+	}
+
+	.brand__mark {
+		width: 3.55rem;
+		height: 2.65rem;
+		flex: 0 0 auto;
+		fill: none;
+		stroke: currentColor;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-width: 1.6;
+	}
+
+	.brand__copy {
+		display: grid;
+		gap: 0.18rem;
+		min-width: 0;
+	}
+
+	.brand__name {
+		font-family: var(--display);
+		font-size: 1.35rem;
+		letter-spacing: 0.04em;
+		line-height: 1;
+	}
+
+	.brand__tagline {
+		font-size: 0.48rem;
+		font-weight: 800;
+		letter-spacing: 0.22em;
+		line-height: 1;
+		text-transform: uppercase;
+		white-space: nowrap;
+	}
+
+	.primary-nav {
+		padding-left: 2rem;
+		display: grid;
+		width: 100%;
+		min-width: 0;
+		flex: 1 1 auto;
+		align-items: center;
+		gap: clamp(0.85rem, 1.55vw, 1.5rem);
+		grid-template-columns: minmax(0, max-content) minmax(12rem, 1fr) max-content;
+	}
+
+	.primary-nav__links,
+	.category-nav {
+		display: flex;
+		min-width: 0;
+		align-items: center;
+	}
+
+	.primary-nav__links {
+		gap: clamp(0.85rem, 1.5vw, 1.45rem);
+	}
+
+	.category-nav {
+		grid-column: 1;
+		gap: 0.45rem;
+		padding-block: 0.125rem;
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+
+	.category-nav::-webkit-scrollbar {
+		display: none;
+	}
+
+	.primary-nav__links a,
+	.category-nav a,
+	.login-link {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--ink-deep);
+		font-size: 0.82rem;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		line-height: 1;
+		text-decoration: none;
+		text-transform: uppercase;
+		white-space: nowrap;
+		transition:
+			background-color 180ms ease,
+			border-color 180ms ease,
+			color 180ms ease,
+			transform 180ms ease;
+	}
+
+	.primary-nav__links a {
+		min-height: 2.35rem;
+	}
+
+	.primary-nav__links a:hover,
+	.login-link:hover {
+		color: var(--blue-deep);
+	}
+
+	.category-nav a {
+		min-height: 2.1rem;
+		gap: 0.35rem;
+		padding: 0.35rem 0.62rem;
+		border: 1px solid transparent;
+		border-radius: 6px;
+		background: rgb(169 212 225 / 0.16);
+		font-size: 0.82rem;
+		color: var(--ink-deep);
+		transition:
+			background-color 180ms ease,
+			border-color 180ms ease,
+			color 180ms ease,
+			transform 180ms ease;
+	}
+
+	.category-nav a:hover {
+		border-color: rgb(127 174 192 / 0.4);
+		background: rgb(169 212 225 / 0.3);
+		transform: translateY(-1px);
+	}
+
+	.category-nav span {
+		opacity: 0.68;
+		font-size: 0.84em;
+	}
+
+	.header-search {
+		grid-column: 2;
+		width: 100%;
+		min-width: 0;
+		justify-self: stretch;
+	}
+
+	.header-search label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+
+	.header-search__field {
+		display: grid;
+		min-height: 0;
+		align-items: center;
+		border: 1px solid rgb(127 174 192 / 0.38);
+		border-radius: 999px;
+		background: var(--paper);
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	.header-search input {
+		width: 100%;
+		min-width: 2.65rem;
+		padding: 0.55rem 0.35rem 0.55rem 0.95rem;
+		border: 0;
+		background: transparent;
+		color: var(--ink-deep);
+		font: inherit;
+		font-size: 0.82rem;
+		outline: 0;
+	}
+
+	.header-search input::placeholder {
+		color: #86969a;
+	}
+
+	.header-search button {
+		display: grid;
+		width: 2.25rem;
+		height: 2.25rem;
+		margin-right: 0.2rem;
+		padding: 0;
+		border: 0;
+		border-radius: 50%;
+		background: var(--blue-deep);
+		color: var(--white);
+		cursor: pointer;
+		place-items: center;
+	}
+
+	.header-search svg {
+		width: 1rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-linecap: round;
+		stroke-width: 1.7;
+	}
+
+	.login-link {
+		grid-column: 3;
+		width: max-content;
+		flex: 0 0 auto;
+		justify-self: end;
+		min-height: 2.65rem;
+		padding-inline: 1rem;
+		border: 1px solid var(--ink-deep);
+		border-radius: 999px;
+		background: var(--ink-deep);
+		color: var(--white);	
+	}
+
+	.login-link:hover {
+		border-color: var(--blue-deep);
+		background: var(--blue-deep);
+		color: var(--white);
+	}
+
+	.menu-toggle {
+		display: none;
+		width: 2.9rem;
+		height: 2.9rem;
+		justify-self: end;
+		padding: 0.7rem;
+		border: 1px solid var(--line);
+		border-radius: 999px;
+		background: var(--white);
+		color: var(--ink);
+		cursor: pointer;
+	}
+
+	.menu-toggle span {
+		display: block;
+		width: 100%;
+		height: 1px;
+		margin: 0.3rem 0;
+		background: currentColor;
+		transition:
+			transform 180ms ease,
+			opacity 180ms ease;
+	}
+
+	@media (max-width: 82rem) {
+		.primary-nav {
+			grid-template-columns: minmax(0, max-content) minmax(10rem, 1fr) max-content;
+		}
+
+		.primary-nav__links a:nth-child(3) {
+			display: none;
+		}
+	}
+
+	@media (max-width: 72rem) {
+		.category-nav a:nth-child(n + 5) {
+			display: none;
+		}
+	}
+
+	@media (max-width: 64rem) {
+		.nav-shell {
+			min-height: 4.75rem;
+			grid-template-columns: minmax(0, auto) auto;
+		}
+
+		.brand__mark {
+			width: 3.2rem;
+			height: 2.45rem;
+		}
+
+		.brand__name {
+			font-size: 1.22rem;
+		}
+
+		.brand__tagline {
+			display: none;
+		}
+
+		.menu-toggle {
+			display: block;
+		}
+
+		.menu-toggle[aria-expanded="true"] span:nth-child(1) {
+			transform: translateY(0.38rem) rotate(45deg);
+		}
+
+		.menu-toggle[aria-expanded="true"] span:nth-child(2) {
+			opacity: 0;
+		}
+
+		.menu-toggle[aria-expanded="true"] span:nth-child(3) {
+			transform: translateY(-0.38rem) rotate(-45deg);
+		}
+
+		.primary-nav {
+			display: grid;
+			position: absolute;
+			top: 100%;
+			right: 0;
+			left: 0;
+			width: 100%;
+			max-height: 0;
+			align-items: stretch;
+			gap: 0;
+			overflow: hidden;
+			border-top: 0 solid var(--line);
+			background: var(--paper);
+			box-shadow: var(--shadow-soft);
+			grid-template-columns: 1fr;
+			visibility: hidden;
+			transition:
+				max-height 260ms ease,
+				visibility 260ms ease,
+				border-top-width 260ms ease;
+		}
+
+		.primary-nav[data-open] {
+			max-height: calc(100svh - 4.75rem);
+			overflow-y: auto;
+			border-top-width: 1px;
+			visibility: visible;
+		}
+
+		.category-nav,
+		.header-search,
+		.login-link {
+			grid-column: 1;
+			justify-self: stretch;
+		}
+
+		.primary-nav__links,
+		.category-nav {
+			align-items: stretch;
+			flex-direction: column;
+			gap: 0;
+		}
+
+		.primary-nav__links a,
+		.category-nav a,
+		.login-link {
+			width: 100%;
+			min-height: 3.25rem;
+			justify-content: flex-start;
+			padding: 1rem 1.5rem;
+			border-radius: 0;
+			border-inline: 0;
+			border-top: 0;
+			border-bottom: 1px solid var(--line);
+			background: transparent;
+			color: var(--ink-deep);
+			transform: none;
+		}
+
+		.primary-nav__links a:nth-child(3),
+		.category-nav a:nth-child(n + 5) {
+			display: inline-flex;
+		}
+
+		.category-nav {
+			max-height: 14rem;
+			overflow-y: auto;
+		}
+
+		.category-nav a {
+			color: var(--blue-deep);
+		}
+
+		.header-search {
+			padding: 1rem 1.25rem;
+			border-bottom: 1px solid var(--line);
+			order: -1;
+		}
+
+		.login-link {
+			background: var(--ink-deep);
+			color: var(--white);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.primary-nav,
+		.primary-nav__links a,
+		.category-nav a,
+		.login-link,
+		.menu-toggle span {
+			transition: none;
+		}
+	}
+</style>

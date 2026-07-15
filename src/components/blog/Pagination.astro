@@ -1,0 +1,135 @@
+---
+import { getPaginatedPath } from '../../lib/pagination.mjs';
+
+interface Props {
+  currentPage: number;
+  totalPages: number;
+  basePath: string;
+  label?: string;
+}
+
+const {
+  currentPage,
+  totalPages,
+  basePath,
+  label = 'Σελιδοποίηση άρθρων',
+} = Astro.props;
+
+const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
+const previousPage = currentPage - 1;
+const nextPage = currentPage + 1;
+---
+
+{
+  totalPages > 1 && (
+    <nav class="archive-pagination" aria-label={label}>
+      <div class="archive-pagination__inner">
+        {
+          currentPage > 1 ? (
+            <a class="archive-pagination__edge" href={getPaginatedPath(basePath, previousPage)}>
+              Προηγούμενη
+            </a>
+          ) : (
+            <span class="archive-pagination__edge is-disabled" aria-disabled="true">
+              Προηγούμενη
+            </span>
+          )
+        }
+
+        <ol class="archive-pagination__pages">
+          {pageNumbers.map((pageNumber) => (
+            <li>
+              <a
+                class:list={[
+                  'archive-pagination__page',
+                  pageNumber === currentPage && 'is-active',
+                ]}
+                href={getPaginatedPath(basePath, pageNumber)}
+                aria-current={pageNumber === currentPage ? 'page' : undefined}
+              >
+                {pageNumber}
+              </a>
+            </li>
+          ))}
+        </ol>
+
+        {
+          currentPage < totalPages ? (
+            <a class="archive-pagination__edge" href={getPaginatedPath(basePath, nextPage)}>
+              Επόμενη
+            </a>
+          ) : (
+            <span class="archive-pagination__edge is-disabled" aria-disabled="true">
+              Επόμενη
+            </span>
+          )
+        }
+      </div>
+    </nav>
+  )
+}
+
+<style>
+  .archive-pagination {
+    margin-top: clamp(2rem, 5vw, 3.5rem);
+  }
+
+  .archive-pagination__inner,
+  .archive-pagination__pages {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+  }
+
+  .archive-pagination__pages {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .archive-pagination__edge,
+  .archive-pagination__page {
+    display: inline-flex;
+    min-width: 2.55rem;
+    min-height: 2.55rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line);
+    background: var(--white);
+    color: var(--ink-deep);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease;
+  }
+
+  .archive-pagination__edge {
+    padding-inline: 0.95rem;
+  }
+
+  .archive-pagination__page.is-active,
+  .archive-pagination__edge:hover,
+  .archive-pagination__page:hover {
+    border-color: var(--blue-deep);
+    background: var(--blue-deep);
+    color: var(--white);
+  }
+
+  .archive-pagination__edge.is-disabled {
+    opacity: 0.42;
+  }
+
+  @media (max-width: 48rem) {
+    .archive-pagination__inner {
+      justify-content: flex-start;
+    }
+  }
+</style>

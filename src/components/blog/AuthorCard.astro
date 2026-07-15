@@ -1,0 +1,238 @@
+---
+interface Props {
+  author: { name: string; pictureUrl: string | null };
+  articleTitle: string;
+  articleUrl: string;
+}
+
+const { author, articleTitle, articleUrl } = Astro.props;
+const publicBaseUrl =
+  import.meta.env.PUBLIC_SITE_URL ?? 'http://enterlife.localhost';
+const absoluteUrl = new URL(articleUrl, publicBaseUrl).href;
+const encodedUrl = encodeURIComponent(absoluteUrl);
+const encodedTitle = encodeURIComponent(articleTitle);
+const initials = author.name
+  .split(/\s+/)
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((part) => [...part][0]?.toUpperCase())
+  .join('');
+
+const shareLinks = [
+  {
+    label: 'Κοινοποίηση στο Facebook',
+    name: 'Facebook',
+    href: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+    icon: 'facebook',
+  },
+  {
+    label: 'Κοινοποίηση στο X',
+    name: 'X',
+    href: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}`,
+    icon: 'x',
+  },
+  {
+    label: 'Κοινοποίηση στο LinkedIn',
+    name: 'LinkedIn',
+    href: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,
+    icon: 'linkedin',
+  },
+  {
+    label: 'Κοινοποίηση με email',
+    name: 'Email',
+    href: `mailto:?subject=${encodedTitle}&body=${encodedUrl}`,
+    icon: 'email',
+  },
+];
+---
+
+<section class="author-card" aria-label="Συγγραφέας και κοινοποίηση">
+  <div class="author-card__identity">
+    {
+      author.pictureUrl ? (
+        <img
+          src={author.pictureUrl}
+          alt={`Φωτογραφία του χρήστη ${author.name}`}
+          width="160"
+          height="160"
+          loading="eager"
+        />
+      ) : (
+        <span class="author-card__initials" aria-hidden="true">
+          {initials || 'E'}
+        </span>
+      )
+    }
+    <div>
+      <p class="author-card__label">Συγγραφέας</p>
+      <p class="author-card__name">{author.name}</p>
+    </div>
+  </div>
+
+  <div class="author-card__share">
+    <p>Μοιραστείτε</p>
+    <div class="author-card__share-list">
+      {
+        shareLinks.map((link) => (
+          <a
+            href={link.href}
+            aria-label={link.label}
+            title={link.name}
+            target={link.icon === 'email' ? undefined : '_blank'}
+            rel={link.icon === 'email' ? undefined : 'noopener noreferrer'}
+          >
+            {link.icon === 'facebook' && (
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M14 8h3V4h-3c-3.3 0-5 2-5 5v2H6v4h3v7h4v-7h3l1-4h-4V9c0-.7.3-1 1-1Z" />
+              </svg>
+            )}
+            {link.icon === 'x' && (
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="m5 4 14 16M19 4 5 20" />
+              </svg>
+            )}
+            {link.icon === 'linkedin' && (
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M6 9v10M6 5.5v.1M10.5 19V9m0 4.5c0-2.5 7.5-3.5 7.5 1V19" />
+              </svg>
+            )}
+            {link.icon === 'email' && (
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <rect x="3" y="5" width="18" height="14" rx="1" />
+                <path d="m4 7 8 6 8-6" />
+              </svg>
+            )}
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .author-card {
+    color: var(--ink);
+  }
+
+  .author-card__identity {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    gap: 0.9rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--line);
+    text-align: center;
+  }
+
+  .author-card__identity img,
+  .author-card__initials {
+    width: 5.5rem;
+    height: 5.5rem;
+    border: 0.35rem solid var(--white);
+    border-radius: 50%;
+    box-shadow: 0 0.7rem 1.8rem rgb(38 63 72 / 0.12);
+    object-fit: cover;
+  }
+
+  .author-card__initials {
+    display: grid;
+    place-items: center;
+    background: var(--blue);
+    color: var(--ink-deep);
+    font-family: var(--display);
+    font-size: 1.6rem;
+  }
+
+  .author-card__label,
+  .author-card__share > p {
+    margin-bottom: 0.25rem;
+    color: var(--muted);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .author-card__name {
+    margin: 0;
+    color: var(--ink-deep);
+    font-family: var(--display);
+    font-size: 1.25rem;
+  }
+
+  .author-card__share {
+    margin-top: 1.5rem;
+    text-align: center;
+  }
+
+  .author-card__share > p {
+    margin-bottom: 0.75rem;
+  }
+
+  .author-card__share-list {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .author-card__share-list a {
+    display: grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid var(--line);
+    place-items: center;
+    background: var(--white);
+    color: var(--ink);
+    text-decoration: none;
+    transition:
+      border-color 180ms ease,
+      background-color 180ms ease,
+      color 180ms ease,
+      transform 180ms ease;
+  }
+
+  .author-card__share-list a:hover {
+    border-color: var(--ink-deep);
+    background: var(--ink-deep);
+    color: var(--white);
+    transform: translateY(-2px);
+  }
+
+  .author-card__share-list svg {
+    width: 1rem;
+    height: 1rem;
+    fill: currentColor;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.7;
+  }
+
+  .author-card__share-list a:nth-child(n + 2) svg {
+    fill: none;
+  }
+
+  @media (max-width: 62rem) {
+    .author-card__identity {
+      justify-content: flex-start;
+      flex-direction: row;
+      text-align: left;
+    }
+
+    .author-card__share {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      text-align: left;
+    }
+
+    .author-card__share > p {
+      margin: 0;
+    }
+
+    .author-card__share-list {
+      flex-direction: row;
+    }
+  }
+</style>

@@ -1,0 +1,540 @@
+---
+import ArticleCard from "../../components/blog/ArticleCard.astro";
+import AuthorCard from "../../components/blog/AuthorCard.astro";
+import LatestArticles from "../../components/blog/LatestArticles.astro";
+import Layout from "../../layouts/Layout.astro";
+import { buildArticleContents, deriveBlogCategories, fetchBlogArticles, getRelatedArticles } from "../../lib/drupal.mjs";
+
+export async function getStaticPaths() {
+  const articles = await fetchBlogArticles();
+  const categories = deriveBlogCategories(articles);
+
+  return articles.map((article) => ({
+    params: { slug: article.slug },
+    props: {
+      article,
+      latestArticles: articles
+        .filter((candidate) => candidate.id !== article.id)
+        .slice(0, 4),
+      navigationCategories: categories,
+      relatedArticles: getRelatedArticles(article, articles, 3),
+    },
+  }));
+}
+
+const { article, latestArticles, navigationCategories, relatedArticles } = Astro.props;
+const publishedAt = new Intl.DateTimeFormat("el-GR", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+}).format(new Date(article.created));
+const articleCategories = article.categories?.length
+  ? article.categories
+  : article.category && article.categorySlug
+    ? [{ name: article.category, slug: article.categorySlug }]
+    : [];
+const { html: articleBodyHtml, items: articleContents } = buildArticleContents(article.bodyHtml);
+---
+
+<Layout
+  title={`${article.title} | Enterlife`}
+  description={article.excerpt}
+  navigationCategories={navigationCategories}
+>
+  <article class="single-article" data-pagefind-body>
+    <header class="article-hero">
+      <div class="article-hero__copy container">
+        <a class="article-hero__back" href="/blog/">Όλα τα άρθρα</a>
+        <h1 data-pagefind-meta="title">{article.title}</h1>
+        <div class="article-hero__meta">
+          {
+            articleCategories.length > 0 && (
+              <div class="article-hero__categories" aria-label="Κατηγορίες άρθρου">
+                {articleCategories.map((category) => (
+                  <a
+                    class="article-hero__category"
+                    href={`/blog/category/${category.slug}`}
+                    data-pagefind-filter="category"
+                    style={category.color ? `--article-hero-category-background: ${category.color};` : undefined}
+                  >
+                    {category.name}
+                  </a>
+                ))}
+              </div>
+            )
+          }
+          <span
+            >Από <a href={`/authors/${article.author.slug}`}
+              data-pagefind-filter="author"
+              >{article.author.name}</a
+            ></span
+          >
+          <span aria-hidden="true">·</span>
+          <time datetime={article.created} data-pagefind-sort="date[datetime]">{publishedAt}</time>
+        </div>
+      </div>
+
+      {
+        article.image && (
+          <figure class="article-hero__image container">
+            <img
+              src={article.image.url}
+              alt={article.image.alt}
+              width={article.image.width}
+              height={article.image.height}
+              loading="eager"
+              data-pagefind-meta="image[src], image_alt[alt]"
+            />
+          </figure>
+        )
+      }
+    </header>
+
+    <div class="article-layout container">
+      <aside class="article-author" data-pagefind-ignore>
+        <div class="article-author__sticky">
+          <AuthorCard
+            author={article.author}
+            articleTitle={article.title}
+            articleUrl={article.url}
+          />
+        </div>
+      </aside>
+
+      <div class="article-main">
+        <div class="article-body" set:html={articleBodyHtml} />
+        {
+          article.tags.length > 0 && (
+            <footer class="article-tags" aria-label="Ετικέτες άρθρου">
+              <span>Ετικέτες</span>
+              <ul>
+                {article.tags.map((tag) => (
+                  <li data-pagefind-filter="tag">{tag}</li>
+                ))}
+              </ul>
+            </footer>
+          )
+        }
+      </div>
+
+      <aside class="article-latest" data-pagefind-ignore>
+        <div class="article-latest__sticky">
+          {
+            articleContents.length > 0 && (
+              <nav class="article-contents" aria-labelledby="article-contents-title">
+                <p class="article-contents__title" id="article-contents-title">Περιεχόμενα</p>
+                <ol>
+                  {articleContents.map((heading) => (
+                    <li>
+                      <a
+                        class={`article-contents__link article-contents__link--h${heading.level}`}
+                        href={`#${heading.id}`}
+                      >
+                        {heading.text}
+                      </a>
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+            )
+          }
+          <LatestArticles articles={latestArticles} />
+        </div>
+      </aside>
+    </div>
+
+    {
+      relatedArticles.length > 0 && (
+        <section class="related-articles container" aria-labelledby="related-articles-title" data-pagefind-ignore>
+          <p class="eyebrow">Από enterlife</p>
+          <h2 id="related-articles-title">Σχετικά άρθρα</h2>
+          <div class="related-articles__grid">
+            {relatedArticles.map((relatedArticle) => (
+              <ArticleCard article={relatedArticle} />
+            ))}
+          </div>
+        </section>
+      )
+    }
+  </article>
+</Layout>
+
+<style>
+  .single-article {
+    padding-bottom: clamp(5rem, 9vw, 9rem);
+  }
+
+  .article-hero {
+    padding-top: clamp(3.5rem, 7vw, 6.75rem);
+    background:
+      radial-gradient(
+        circle at 8% 12%,
+        rgb(169 212 225 / 0.27),
+        transparent 22rem
+      ),
+      linear-gradient(to bottom, var(--paper-soft), var(--paper));
+  }
+
+  .article-hero__copy {
+    max-width: 72rem;
+    text-align: center;
+  }
+
+  .article-hero__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 1.5rem;
+    color: var(--ink);
+    font-size: 0.98rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  .article-hero__back::before {
+    width: 2rem;
+    height: 1px;
+    background: currentColor;
+    content: "";
+  }
+
+  .article-hero h1 {
+    max-width: 66rem;
+    margin-inline: auto;
+    margin-bottom: 1.25rem;
+    font-size: clamp(1.65rem, 6vw, 3.75rem);
+  }
+
+  .article-hero__category {
+    display: inline-block;
+    transition: background 180ms ease;
+    padding: 0.2rem 0.6rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 750;
+    letter-spacing: 0.08em;
+    text-decoration: none;
+    align-items: center;
+		justify-content: center;
+		padding-inline: 0,5rem;
+    border: 1px solid var(--article-hero-category-background, var(--ink-deep));
+    border-radius: 5px;
+    background: var(--article-hero-category-background, var(--ink-deep));
+    color: var(--white);
+  }
+
+  .article-hero__category:hover {
+    background: var(--article-hero-category-background, var(--blue-deep));
+  }
+
+  .article-hero__categories {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.45rem;
+  }
+
+  .article-hero__meta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.55rem;
+    padding-bottom: clamp(2.5rem, 5vw, 4.5rem);
+    color: var(--muted);
+    font-size: 0.98rem;
+  }
+
+  .article-hero__image {
+    max-width: 88rem;
+    aspect-ratio: 16 / 7.5;
+    overflow: hidden;
+    background: var(--paper-soft);
+  }
+
+  .article-hero__image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .article-layout {
+    display: grid;
+    max-width: 88rem;
+    align-items: start;
+    gap: clamp(2rem, 4vw, 4rem);
+    padding-top: clamp(3.5rem, 7vw, 7rem);
+    grid-template-columns: 11rem minmax(0, 46rem) 18rem;
+  }
+
+  .article-author,
+  .article-latest {
+    position: sticky;
+    top: 6rem;
+    align-self: start;
+  }
+
+  .article-main {
+    min-width: 0;
+  }
+
+  .article-body {
+    color: #445d65;
+    font-family: var(--sans);
+    font-size: clamp(1rem, 1.25vw, 1.08rem);
+    line-height: 1.85;
+  }
+
+  .article-body :global(h1),
+  .article-body :global(h2),
+  .article-body :global(h3),
+  .article-body :global(h4) {
+    margin-top: 2.4em;
+    margin-bottom: 0.75em;
+    color: var(--ink-deep);
+  }
+
+  .article-body :global(h1) {
+    font-size: clamp(1.15rem, 4.5vw, 2.35rem);
+  }
+
+  .article-body :global(h2) {
+    font-size: clamp(1.5rem, 4vw, 2.25rem);
+  }
+
+  .article-body :global(h1[id]),
+  .article-body :global(h2[id]) {
+    scroll-margin-top: 7rem;
+  }
+
+  .article-body :global(h3) {
+    font-size: clamp(1.55rem, 3vw, 2.15rem);
+  }
+
+  .article-body :global(h4) {
+    font-family: var(--sans);
+    font-size: 1.15rem;
+    font-weight: 750;
+  }
+
+  .article-body :global(p),
+  .article-body :global(ul),
+  .article-body :global(ol) {
+    margin-bottom: 1.35rem;
+  }
+
+  .article-body :global(ul),
+  .article-body :global(ol) {
+    padding-left: 1.35rem;
+  }
+
+  .article-body :global(li + li) {
+    margin-top: 0.45rem;
+  }
+
+  .article-body :global(a) {
+    color: var(--ink-deep);
+    text-decoration-color: var(--blue-deep);
+  }
+
+  .article-body :global(img) {
+    width: 100%;
+    height: auto;
+    margin-block: 2.25rem;
+  }
+
+  .article-body :global(blockquote) {
+    margin-block: 2.25rem;
+    padding: 1.5rem 0 1.5rem 1.75rem;
+    border-left: 3px solid var(--blue-deep);
+    color: var(--ink-deep);
+    font-family: var(--display);
+    font-size: clamp(1.3rem, 2.2vw, 1.65rem);
+    line-height: 1.55;
+  }
+
+  .article-body :global(table) {
+    display: block;
+    width: 100%;
+    margin-block: 2rem;
+    overflow-x: auto;
+    border-collapse: collapse;
+  }
+
+  .article-body :global(th),
+  .article-body :global(td) {
+    padding: 0.75rem;
+    border: 1px solid var(--line);
+    text-align: left;
+  }
+
+  .article-tags {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .article-tags > span {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .article-tags ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .article-tags li {
+    padding: 0.25rem 0.7rem;
+    border: 1px solid var(--line);
+    background: var(--white);
+    color: var(--muted);
+    font-size: 0.72rem;
+  }
+
+  .article-contents {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .article-contents__title {
+    margin-bottom: 0.85rem;
+    color: var(--ink-deep);
+    font-size: 1.85rem;
+    font-weight: 500;
+    
+  }
+
+  .article-contents ol {
+    display: grid;
+    gap: 0.65rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .article-contents__link {
+    display: block;
+    transition: color 160ms ease, border-color 160ms ease;
+    color: var(--black);
+    font-size: 1rem;
+    line-height: 1.35;
+    text-decoration: none;
+  }
+
+  .article-contents__link:hover {
+    color: var(--ink-deep);
+    background: var(--white);
+  }
+
+  .article-contents__link--h1 {
+    color: var(--ink-deep);
+    font-weight: 750;
+  }
+
+  .article-contents__link--h2 {
+    padding-left: 0.75rem;
+    border-left: 1px solid var(--line);
+  }
+
+  .related-articles {
+    max-width: 88rem;
+    margin-top: clamp(4rem, 8vw, 7rem);
+    padding-top: clamp(2.25rem, 4vw, 3rem);
+    border-top: 1px solid var(--line);
+  }
+
+  .related-articles > .eyebrow {
+    margin-bottom: 0.45rem;
+    color: var(--blue-deep);
+  }
+
+  .related-articles > h2 {
+    margin-bottom: clamp(1.5rem, 3vw, 2.25rem);
+    font-size: clamp(2rem, 4vw, 3rem);
+  }
+
+  .related-articles__grid {
+    display: grid;
+    gap: clamp(1.25rem, 2vw, 1.75rem);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @media (max-width: 80rem) {
+    .article-layout {
+      grid-template-columns: 9rem minmax(0, 1fr) 16rem;
+    }
+  }
+
+  @media (max-width: 62rem) {
+    .article-hero__image {
+      width: 100%;
+    }
+
+    .article-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .article-author,
+    .article-latest {
+      position: static;
+    }
+
+    .article-author {
+      order: 1;
+      padding: 1.25rem;
+      border: 1px solid var(--line);
+      background: var(--white);
+    }
+
+    .article-main {
+      order: 2;
+    }
+
+    .article-latest {
+      order: 3;
+      margin-top: 1rem;
+      padding-top: 2.5rem;
+      border-top: 1px solid var(--line);
+    }
+
+    .related-articles__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 38rem) {
+    .article-hero__copy {
+      text-align: left;
+    }
+
+    .article-hero__meta {
+      justify-content: flex-start;
+    }
+
+    .article-hero__image {
+      aspect-ratio: 4 / 3;
+    }
+
+    .article-body {
+      line-height: 1.75;
+    }
+
+    .related-articles__grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

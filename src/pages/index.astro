@@ -1,0 +1,22 @@
+---
+import BlogExplorer from '../components/blog/BlogExplorer.astro';
+import Layout from '../layouts/Layout.astro';
+import { deriveBlogCategories, fetchBlogArticles } from '../lib/drupal.mjs';
+
+const articles = await fetchBlogArticles();
+const categories = deriveBlogCategories(articles);
+---
+
+<Layout
+  title="Enterlife — Άρθρα για φυσική ευεξία"
+  description="Αναζητήστε άρθρα, οδηγούς και ιδέες για φυσική ευεξία από την κοινότητα του Enterlife."
+  navigationCategories={categories}
+>
+  <BlogExplorer
+    articles={articles}
+    categories={categories}
+    eyebrow="ENTERLIFE JOURNAL"
+    title="Άρθρα για φυσική ευεξία"
+    intro="Αναζητήστε στοχευμένα άρθρα, φιλτράρετε ανά κατηγορία και βρείτε γρήγορα ιδέες φροντίδας για τον δικό σας ρυθμό."
+  />
+</Layout>

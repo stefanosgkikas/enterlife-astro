@@ -1,0 +1,643 @@
+---
+import ArticleCard from './ArticleCard.astro';
+
+interface Category {
+  name: string;
+  slug: string;
+  count: number;
+}
+
+interface Props {
+  articles: Array<any>;
+  categories: Category[];
+  eyebrow?: string;
+  title?: string;
+  intro?: string;
+  emptyMessage?: string;
+}
+
+const {
+  articles,
+  categories,
+  eyebrow = 'ENTERLIFE JOURNAL',
+  title = 'Άρθρα',
+  intro = 'Ιδέες, εμπειρίες και πρακτικοί οδηγοί από τους ανθρώπους της κοινότητάς μας.',
+  emptyMessage = 'Δεν υπάρχουν δημοσιευμένα άρθρα ακόμη.',
+} = Astro.props;
+---
+
+<section
+  class="blog-explorer"
+  id="articles"
+  data-blog-explorer
+  data-category-slugs={categories.map((category) => category.slug).join('|')}
+>
+
+
+
+
+  <section class="blog-archive container" aria-label="Όλα τα άρθρα">
+    <p class="blog-status" data-blog-status aria-live="polite">
+      {articles.length} δημοσιεύσεις
+    </p>
+
+    {
+      articles.length > 0 ? (
+        <div class="blog-grid" data-blog-grid>
+          {articles.map((article) => <ArticleCard article={article} />)}
+        </div>
+      ) : (
+        <p class="blog-empty">{emptyMessage}</p>
+      )
+    }
+
+    <p class="blog-empty blog-empty--filtered" data-blog-empty hidden>
+      Δεν βρέθηκαν άρθρα για αυτή την επιλογή.
+    </p>
+
+    <nav class="blog-pagination" data-blog-pagination aria-label="Σελιδοποίηση άρθρων" hidden>
+      <div class="blog-pagination__inner">
+        <button type="button" data-blog-pagination-prev>Προηγούμενη</button>
+        <ol class="blog-pagination__pages" data-blog-pagination-pages></ol>
+        <button type="button" data-blog-pagination-next>Επόμενη</button>
+      </div>
+      <p class="blog-pagination__summary" data-blog-pagination-summary></p>
+    </nav>
+  </section>
+</section>
+
+<script>
+  const ARTICLES_PER_PAGE = 12;
+  const PAGEFIND_MIN_QUERY_LENGTH = 2;
+
+  function normalizeResultUrl(value) {
+    try {
+      const url = new URL(value, window.location.origin);
+      return url.pathname.replace(/\/$/, '');
+    } catch {
+      return String(value ?? '').replace(/\/$/, '');
+    }
+  }
+
+  function getPagefind() {
+    const pagefindModuleUrl = new URL('/pagefind/pagefind.js', window.location.origin).href;
+    window.__enterlifePagefind ??= import(/* @vite-ignore */ pagefindModuleUrl)
+      .then((pagefind) => {
+        pagefind.init?.();
+        return pagefind;
+      })
+      .catch(() => null);
+
+    return window.__enterlifePagefind;
+  }
+
+  async function searchWithPagefind(query) {
+    if (query.length < PAGEFIND_MIN_QUERY_LENGTH) return null;
+
+    const pagefind = await getPagefind();
+    if (!pagefind?.search) return null;
+
+    const search = await pagefind.search(query);
+    const urls = new Set();
+
+    for (const result of search.results.slice(0, 200)) {
+      const data = await result.data();
+      urls.add(normalizeResultUrl(data.url));
+    }
+
+    return urls;
+  }
+
+  function getHashFilter() {
+    try {
+      return decodeURIComponent(window.location.hash.slice(1));
+    } catch {
+      return window.location.hash.slice(1);
+    }
+  }
+
+  function setupBlogExplorer() {
+    document.querySelectorAll('[data-blog-explorer]').forEach((root) => {
+      if (!(root instanceof HTMLElement) || root.dataset.blogExplorerReady === 'true') return;
+      root.dataset.blogExplorerReady = 'true';
+
+      const status = root.querySelector('[data-blog-status]');
+      const visibleCount = root.querySelector('[data-blog-visible-count]');
+      const empty = root.querySelector('[data-blog-empty]');
+      const pagination = root.querySelector('[data-blog-pagination]');
+      const paginationPages = root.querySelector('[data-blog-pagination-pages]');
+      const paginationPrevious = root.querySelector('[data-blog-pagination-prev]');
+      const paginationNext = root.querySelector('[data-blog-pagination-next]');
+      const paginationSummary = root.querySelector('[data-blog-pagination-summary]');
+      const cards = [...root.querySelectorAll('[data-blog-card]')];
+      const categorySlugs = new Set(
+        (root.dataset.categorySlugs || '')
+          .split('|')
+          .map((slug) => slug.trim())
+          .filter(Boolean),
+      );
+      const hideTimers = new WeakMap();
+      let activeFilter = 'all';
+      let activeQuery = new URLSearchParams(window.location.search).get('q')?.trim() || '';
+      let currentPage = 1;
+      let hasRendered = false;
+      let renderToken = 0;
+
+      const showCard = (card, shouldShow) => {
+        if (!(card instanceof HTMLElement)) return;
+        const timer = hideTimers.get(card);
+        if (timer) window.clearTimeout(timer);
+
+        if (shouldShow) {
+          card.hidden = false;
+          window.requestAnimationFrame(() => card.classList.remove('is-hidden'));
+          return;
+        }
+
+        if (!hasRendered) {
+          card.hidden = true;
+          card.classList.add('is-hidden');
+          return;
+        }
+
+        card.classList.add('is-hidden');
+        hideTimers.set(
+          card,
+          window.setTimeout(() => {
+            card.hidden = true;
+          }, 190),
+        );
+      };
+
+      const syncHeaderState = () => {
+        document.querySelectorAll('[data-header-filter]').forEach((link) => {
+          if (!(link instanceof HTMLElement)) return;
+          const isActive = activeFilter !== 'all' && link.dataset.headerFilter === activeFilter;
+          link.classList.toggle('active', isActive);
+          if (isActive) {
+            link.setAttribute('aria-current', 'true');
+          } else {
+            link.removeAttribute('aria-current');
+          }
+        });
+
+        document.querySelectorAll('[data-header-search-input]').forEach((input) => {
+          if (input instanceof HTMLInputElement && input.value !== activeQuery) {
+            input.value = activeQuery;
+          }
+        });
+      };
+
+      const setActiveFilter = (filter) => {
+        activeFilter = categorySlugs.has(filter) ? filter : 'all';
+        currentPage = 1;
+        syncHeaderState();
+      };
+
+      const setActiveQuery = (query) => {
+        activeQuery = String(query ?? '').trim();
+        currentPage = 1;
+        syncHeaderState();
+      };
+
+      const updatePagination = (totalItems, totalPages) => {
+        if (!(pagination instanceof HTMLElement)) return;
+        pagination.hidden = totalItems <= ARTICLES_PER_PAGE;
+
+        if (paginationPrevious instanceof HTMLButtonElement) {
+          paginationPrevious.disabled = currentPage <= 1;
+        }
+        if (paginationNext instanceof HTMLButtonElement) {
+          paginationNext.disabled = currentPage >= totalPages;
+        }
+        if (paginationSummary instanceof HTMLElement) {
+          paginationSummary.textContent = `Σελίδα ${currentPage} από ${totalPages}`;
+        }
+        if (paginationPages instanceof HTMLElement) {
+          paginationPages.innerHTML = '';
+
+          for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+            const item = document.createElement('li');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.dataset.blogPage = String(pageNumber);
+            button.textContent = String(pageNumber);
+            if (pageNumber === currentPage) {
+              button.classList.add('is-active');
+              button.setAttribute('aria-current', 'page');
+            }
+            item.append(button);
+            paginationPages.append(item);
+          }
+        }
+      };
+
+      const goToPage = (page) => {
+        const pageNumber = Number.parseInt(String(page), 10);
+        if (!Number.isFinite(pageNumber) || pageNumber === currentPage) return;
+        currentPage = Math.max(1, pageNumber);
+        render();
+      };
+
+      const render = async () => {
+        const token = ++renderToken;
+        const rawQuery = activeQuery.trim();
+        const query = rawQuery.toLocaleLowerCase('el-GR');
+        const pagefindUrls = await searchWithPagefind(query);
+        if (token !== renderToken) return;
+
+        const matchingCards = cards.filter((card) => {
+          if (!(card instanceof HTMLElement)) return;
+          const cardCategories = (card.dataset.categories || card.dataset.category || '')
+            .split('|')
+            .map((slug) => slug.trim())
+            .filter(Boolean);
+          const cardUrl = normalizeResultUrl(card.dataset.url);
+          const text = card.dataset.search || '';
+          const matchesCategory = activeFilter === 'all' || cardCategories.includes(activeFilter);
+          const matchesQuery = query
+            ? pagefindUrls
+              ? pagefindUrls.has(cardUrl)
+              : text.includes(query)
+            : true;
+
+          return matchesCategory && matchesQuery;
+        });
+        const totalPages = Math.max(1, Math.ceil(matchingCards.length / ARTICLES_PER_PAGE));
+        if (currentPage > totalPages) currentPage = totalPages;
+        const pageCards = new Set(
+          matchingCards.slice(
+            (currentPage - 1) * ARTICLES_PER_PAGE,
+            currentPage * ARTICLES_PER_PAGE,
+          ),
+        );
+
+        cards.forEach((card) => showCard(card, pageCards.has(card)));
+
+        const label = query
+          ? `${matchingCards.length} αποτελέσματα για "${rawQuery}"`
+          : `${matchingCards.length} δημοσιεύσεις`;
+
+        if (status) status.textContent = label;
+        if (visibleCount) visibleCount.textContent = String(matchingCards.length);
+        if (empty instanceof HTMLElement) empty.hidden = matchingCards.length > 0 || cards.length === 0;
+        updatePagination(matchingCards.length, totalPages);
+        hasRendered = true;
+      };
+
+      const applyHashFilter = () => {
+        setActiveFilter(getHashFilter());
+        render();
+      };
+
+      document.addEventListener('enterlife:blog-search', (event) => {
+        if (!(event instanceof CustomEvent)) return;
+        setActiveQuery(event.detail?.query || '');
+        render();
+      });
+
+      document.addEventListener('enterlife:blog-filter', (event) => {
+        if (!(event instanceof CustomEvent)) return;
+        setActiveFilter(event.detail?.filter || '');
+        render();
+      });
+
+      if (paginationPrevious instanceof HTMLButtonElement) {
+        paginationPrevious.addEventListener('click', () => goToPage(currentPage - 1));
+      }
+      if (paginationNext instanceof HTMLButtonElement) {
+        paginationNext.addEventListener('click', () => goToPage(currentPage + 1));
+      }
+      paginationPages?.addEventListener('click', (event) => {
+        const button = event.target;
+        if (!(button instanceof HTMLButtonElement)) return;
+        goToPage(button.dataset.blogPage);
+      });
+
+      window.addEventListener('hashchange', applyHashFilter);
+      syncHeaderState();
+      applyHashFilter();
+    });
+  }
+
+  setupBlogExplorer();
+  document.addEventListener('astro:after-swap', setupBlogExplorer);
+</script>
+
+<style>
+  .blog-explorer {
+    background: var(--paper);
+  }
+
+  .blog-explorer__hero {
+    border-block: 1px solid var(--line);
+    background: linear-gradient(120deg, var(--paper-soft), var(--paper));
+  }
+
+  .blog-explorer__intro {
+    display: grid;
+    position: relative;
+    gap: 1.35rem;
+    padding-block: clamp(4.25rem, 8vw, 7rem);
+  }
+
+  .blog-explorer h1 {
+    max-width: 12ch;
+    margin-bottom: 0;
+    font-size: clamp(3rem, 7vw, 6.25rem);
+  }
+
+  .blog-explorer__copy {
+    max-width: 43rem;
+    margin-bottom: 0;
+    color: var(--muted);
+    font-family: var(--display);
+    font-size: clamp(1.12rem, 2.1vw, 1.55rem);
+    line-height: 1.5;
+  }
+
+  .blog-explorer__count {
+    position: absolute;
+    right: 0;
+    bottom: clamp(4.25rem, 8vw, 7rem);
+    margin: 0;
+    color: var(--ink);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .blog-search {
+    width: min(44rem, 100%);
+    margin-top: clamp(1rem, 2vw, 1.5rem);
+  }
+
+  .blog-search label {
+    display: block;
+    margin-bottom: 0.6rem;
+    color: var(--ink-deep);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .blog-search__field {
+    display: grid;
+    align-items: center;
+    border: 1px solid rgb(127 174 192 / 0.45);
+    background: var(--white);
+    box-shadow: 0 1.2rem 3rem rgb(38 63 72 / 0.08);
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .blog-search__field svg {
+    width: 1.25rem;
+    margin-left: 1rem;
+    fill: none;
+    stroke: var(--blue-deep);
+    stroke-linecap: round;
+    stroke-width: 1.7;
+  }
+
+  .blog-search input {
+    width: 100%;
+    min-height: 3.75rem;
+    min-width: 0;
+    padding: 0.85rem 1rem;
+    border: 0;
+    background: transparent;
+    color: var(--ink-deep);
+    outline: 0;
+  }
+
+  .blog-search input::placeholder {
+    color: #91a1a5;
+  }
+
+  .blog-search button {
+    min-height: 2.6rem;
+    margin-right: 0.55rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--line);
+    background: var(--paper-soft);
+    color: var(--ink-deep);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .blog-categories {
+    padding-top: clamp(2.5rem, 5vw, 4rem);
+  }
+
+  .category-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .category-list button {
+    display: inline-flex;
+    min-height: 2.35rem;
+    align-items: center;
+    gap: 0.42rem;
+    padding: 0.35rem 0.85rem;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: rgb(169 212 225 / 0.16);
+    color: var(--blue-deep);
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 750;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease,
+      transform 180ms ease;
+  }
+
+  .category-list button:hover {
+    border-color: rgb(127 174 192 / 0.35);
+    background: rgb(169 212 225 / 0.32);
+    transform: translateY(-1px);
+  }
+
+  .category-list button.active {
+    background: var(--blue-deep);
+    color: var(--white);
+  }
+
+  .category-list .count {
+    opacity: 0.72;
+    font-size: 0.86em;
+    font-weight: 650;
+  }
+
+  .blog-archive {
+    padding-block: clamp(2rem, 5vw, 5.5rem);
+  }
+
+  .blog-status {
+    margin-bottom: 1.25rem;
+    color: var(--muted);
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .blog-grid {
+    display: grid;
+    align-items: stretch;
+    gap: clamp(1.25rem, 2.5vw, 2.25rem);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .blog-grid > :global(.article-card) {
+    transition:
+      opacity 190ms ease,
+      transform 190ms ease,
+      border-color 220ms ease,
+      box-shadow 220ms ease;
+  }
+
+  .blog-grid > :global(.article-card.is-hidden) {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.985);
+  }
+
+  .blog-grid > :global(.article-card[hidden]) {
+    display: none !important;
+  }
+
+  .blog-empty {
+    padding: 4rem 1.5rem;
+    border: 1px solid var(--line);
+    background: var(--white);
+    text-align: center;
+  }
+
+  .blog-empty--filtered {
+    margin-top: 1.5rem;
+  }
+
+  .blog-pagination {
+    margin-top: clamp(2rem, 5vw, 3.5rem);
+  }
+
+  .blog-pagination__inner,
+  .blog-pagination__pages {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+  }
+
+  .blog-pagination__pages {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .blog-pagination button {
+    display: inline-flex;
+    min-width: 2.55rem;
+    min-height: 2.55rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.95rem;
+    border: 1px solid var(--line);
+    background: var(--white);
+    color: var(--ink-deep);
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-transform: uppercase;
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease;
+  }
+
+  .blog-pagination button:hover,
+  .blog-pagination button.is-active {
+    border-color: var(--blue-deep);
+    background: var(--blue-deep);
+    color: var(--white);
+  }
+
+  .blog-pagination button:disabled {
+    opacity: 0.42;
+    cursor: default;
+  }
+
+  .blog-pagination button:disabled:hover {
+    border-color: var(--line);
+    background: var(--white);
+    color: var(--ink-deep);
+  }
+
+  .blog-pagination__summary {
+    margin: 0.85rem 0 0;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 62rem) {
+    .blog-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 48rem) {
+    .blog-explorer__count {
+      position: static;
+    }
+
+    .blog-search__field {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .blog-search button {
+      grid-column: 1 / -1;
+      width: calc(100% - 1.1rem);
+      margin: 0 0.55rem 0.55rem;
+    }
+
+    .blog-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .blog-pagination__inner {
+      justify-content: flex-start;
+    }
+
+    .blog-pagination__summary {
+      text-align: left;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .blog-grid > :global(.article-card),
+    .category-list button {
+      transition: none;
+    }
+  }
+</style>

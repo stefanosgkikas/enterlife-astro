@@ -1,0 +1,184 @@
+---
+import ArticleCard from '../../../components/blog/ArticleCard.astro';
+import Pagination from '../../../components/blog/Pagination.astro';
+import Layout from '../../../layouts/Layout.astro';
+import { deriveBlogCategories, fetchBlogArticles, getArticleCategories } from '../../../lib/drupal.mjs';
+import { ARTICLES_PER_PAGE, getPaginatedPath, paginateItems } from '../../../lib/pagination.mjs';
+
+export async function getStaticPaths() {
+  const articles = await fetchBlogArticles();
+  const categories = deriveBlogCategories(articles);
+  const catMap = new Map();
+
+  for (const article of articles) {
+    for (const category of getArticleCategories(article)) {
+      if (!catMap.has(category.slug)) {
+        catMap.set(category.slug, {
+          name: category.name,
+          slug: category.slug,
+          articles: [],
+        });
+      }
+      catMap.get(category.slug).articles.push(article);
+    }
+  }
+
+  return Array.from(catMap.values()).map((cat) => {
+    const page = paginateItems(cat.articles, 1, ARTICLES_PER_PAGE);
+
+    return {
+      params: { slug: cat.slug },
+      props: {
+        categoryName: cat.name,
+        articles: page.items,
+        articleCount: page.totalItems,
+        currentPage: page.currentPage,
+        totalPages: page.totalPages,
+        basePath: getPaginatedPath(`/blog/category/${cat.slug}/`, 1),
+        navigationCategories: categories,
+      },
+    };
+  });
+}
+
+const {
+  categoryName,
+  articles,
+  articleCount,
+  currentPage,
+  totalPages,
+  basePath,
+  navigationCategories,
+} = Astro.props;
+---
+
+<Layout
+  title={`${categoryName} | Enterlife`}
+  description={`Άρθρα στην κατηγορία ${categoryName} από την κοινότητα του Enterlife.`}
+  navigationCategories={navigationCategories}
+>
+  <header class="blog-intro">
+    <div class="blog-intro__inner container">
+      <p class="eyebrow">ΚΑΤΗΓΟΡΙΑ</p>
+      <h1>{categoryName}</h1>
+      <p class="blog-intro__copy">
+        {articleCount} δημοσιεύ{articleCount === 1 ? 'ση' : 'σεις'} στην κατηγορία {categoryName}
+      </p>
+      <a class="blog-intro__back" href="/blog/">Όλες οι κατηγορίες</a>
+    </div>
+  </header>
+
+  <section class="blog-archive container" aria-label={`Άρθρα στην κατηγορία ${categoryName}`}>
+    {
+      articles.length > 0 ? (
+        <div class="blog-grid">
+          {articles.map((article) => <ArticleCard article={article} />)}
+        </div>
+      ) : (
+        <p class="blog-empty">Δεν υπάρχουν δημοσιευμένα άρθρα σε αυτή την κατηγορία ακόμη.</p>
+      )
+    }
+
+    <Pagination
+      currentPage={currentPage}
+      totalPages={totalPages}
+      basePath={basePath}
+      label={`Σελιδοποίηση άρθρων στην κατηγορία ${categoryName}`}
+    />
+  </section>
+</Layout>
+
+<style>
+  .blog-intro {
+    position: relative;
+    overflow: hidden;
+    border-block: 1px solid var(--line);
+    background:
+      radial-gradient(circle at 82% 22%, rgb(169 212 225 / 0.5), transparent 24rem),
+      linear-gradient(120deg, var(--paper-soft), var(--paper));
+  }
+
+  .blog-intro::after {
+    position: absolute;
+    right: max(2rem, calc((100vw - var(--container)) / 2));
+    bottom: -7rem;
+    width: 20rem;
+    height: 20rem;
+    border: 1px solid rgb(127 174 192 / 0.35);
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 2.75rem rgb(169 212 225 / 0.08),
+      0 0 0 5.5rem rgb(169 212 225 / 0.05);
+    content: "";
+  }
+
+  .blog-intro__inner {
+    position: relative;
+    z-index: 1;
+    padding-block: clamp(4.5rem, 9vw, 8rem);
+  }
+
+  .blog-intro h1 {
+    margin-bottom: 1rem;
+    font-size: clamp(3.4rem, 7vw, 6.5rem);
+  }
+
+  .blog-intro__copy {
+    max-width: 39rem;
+    margin-bottom: 0;
+    color: var(--muted);
+    font-family: var(--display);
+    font-size: clamp(1.2rem, 2.3vw, 1.65rem);
+    line-height: 1.5;
+  }
+
+  .blog-intro__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-top: 1.5rem;
+    color: var(--blue-deep);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  .blog-intro__back::before {
+    width: 2rem;
+    height: 1px;
+    background: currentColor;
+    content: "";
+  }
+
+  .blog-archive {
+    padding-block: clamp(4rem, 8vw, 8rem);
+  }
+
+  .blog-grid {
+    display: grid;
+    align-items: stretch;
+    gap: clamp(1.25rem, 2.5vw, 2.25rem);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .blog-empty {
+    padding: 4rem;
+    border: 1px solid var(--line);
+    background: var(--white);
+    text-align: center;
+  }
+
+  @media (max-width: 62rem) {
+    .blog-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 48rem) {
+    .blog-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
