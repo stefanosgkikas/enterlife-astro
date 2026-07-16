@@ -2,5 +2,9 @@
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "enterlife-astro",
 	"pages_build_output_dir": "./dist",
-	"compatibility_date": "2026-07-16"
+	"compatibility_date": "2026-07-16",
+	"vars": {
+		"DRUPAL_BASE_URL": "https://admin.enterlife.gr",
+		"PUBLIC_SITE_URL": "https://enterlife.gr"
+	}
 }

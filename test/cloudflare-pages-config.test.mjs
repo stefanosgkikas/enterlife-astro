@@ -18,5 +18,7 @@ test('frontend is configured as a static Cloudflare Pages project', async () => 
   assert.doesNotMatch(packageJson, /"@astrojs\/cloudflare"/);
   assert.match(wranglerConfig, /"name":\s*"enterlife-astro"/);
   assert.match(wranglerConfig, /"pages_build_output_dir":\s*"\.\/dist"/);
+  assert.match(wranglerConfig, /"DRUPAL_BASE_URL":\s*"https:\/\/admin\.enterlife\.gr"/);
+  assert.match(wranglerConfig, /"PUBLIC_SITE_URL":\s*"https:\/\/enterlife\.gr"/);
   assert.doesNotMatch(wranglerConfig, /"main"|"assets"/);
 });
