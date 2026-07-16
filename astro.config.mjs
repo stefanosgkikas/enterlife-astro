@@ -2,10 +2,11 @@
 import { defineConfig } from 'astro/config';
 import pagefind from 'astro-pagefind';
 
-import cloudflare from '@astrojs/cloudflare';
-
 // https://astro.build/config
 export default defineConfig({
+  site: 'https://enterlife.gr',
+  output: 'static',
+
   integrations: [pagefind()],
 
   server: {
@@ -18,6 +19,4 @@ export default defineConfig({
       strictPort: true,
     },
   },
-
-  adapter: cloudflare(),
 });
