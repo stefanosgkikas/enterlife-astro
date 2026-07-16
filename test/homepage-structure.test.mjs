@@ -47,8 +47,10 @@ test('shared navigation works from nested blog routes', async () => {
   assert.match(header, /new CustomEvent\('enterlife:blog-search'/);
   assert.match(header, /window\.location\.assign\(`\/\?q=\$\{encodeURIComponent\(query\)\}#articles`\)/);
   assert.doesNotMatch(header, /#article-search/);
-  assert.match(header, /href="http:\/\/admin\.enterlife\.localhost\/user\/login\/"/);
   assert.match(header, /Login/);
+  assert.match(header, /import\.meta\.env\.DRUPAL_BASE_URL/);
+  assert.match(header, /const drupalLoginUrl = new URL\('\/user\/login\/', drupalBaseUrl\)\.toString\(\)/);
+  assert.match(header, /href=\{drupalLoginUrl\}/);
   assert.doesNotMatch(header, /#services/);
   assert.doesNotMatch(header, /#wellness/);
 });

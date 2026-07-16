@@ -10,6 +10,8 @@ interface Props {
 }
 
 const { categories = [] } = Astro.props;
+const drupalBaseUrl = import.meta.env.DRUPAL_BASE_URL || 'http://admin.enterlife.localhost';
+const drupalLoginUrl = new URL('/user/login/', drupalBaseUrl).toString();
 
 /*
 const primaryLinks = [
@@ -95,7 +97,7 @@ const categoryLinks = categories.slice(0, 6).map((category) => ({
 				</div>
 			</form>
 
-			<a class="login-link" href="http://admin.enterlife.localhost/user/login/" rel="noreferrer">
+			<a class="login-link" href={drupalLoginUrl} rel="noreferrer">
 				Login
 			</a>
 		</nav>
